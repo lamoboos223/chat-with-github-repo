@@ -1,0 +1,6 @@
+.vscode/
+myenv
+__pycache__/
+chroma/
+venv/
+.chainlit/
