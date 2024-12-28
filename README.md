@@ -19,7 +19,7 @@ pip3 install torch==2.5.1 torchvision --index-url https://download.pytorch.org/w
 ## Setup the database
 
 ```bash
-python database.py --url=<github_repo_url> #chunk markdown files
+python database.py --url=<github_repo_url> #chunk files
 python database.py --reset # Clear the database
 ```
 
