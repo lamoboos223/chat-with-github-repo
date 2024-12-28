@@ -10,15 +10,19 @@ from langchain_community.vectorstores.chroma import Chroma
 
 CHROMA_PATH = "chroma"
 
+
 def main():
     print("Starting document processing...")
     # Combine argument parsing into a single parser
     parser = argparse.ArgumentParser()
     parser.add_argument("--reset", action="store_true", help="Reset the database.")
-    parser.add_argument("--type", type=str, choices=['pdf', 'markdown'], default='pdf',
-                       help="Type of documents to load (pdf or markdown)")
+    parser.add_argument(
+        "--url",
+        type=str,
+        help="URL of the github repo to load",
+    )
     args = parser.parse_args()
-    
+
     if args.reset:
         print("✨ Clearing Database")
         clear_database()
@@ -26,56 +30,48 @@ def main():
         return  # Add this line to exit after reset
 
     # Create (or update) the data store.
-    print(f"Loading {args.type} documents...")
-    documents = load_documents(args.type)  # Pass the type argument
+    print(f"Loading {args.url} documents...")
+    documents = load_documents(args.url)  # Pass the type argument
     print(f"Found {len(documents)} documents")
-    
+
     print("Splitting documents into chunks...")
     chunks = split_documents(documents)
     print(f"Created {len(chunks)} chunks")
-    
+
     print("Adding chunks to Chroma database...")
     add_to_chroma(chunks)
     print("Finished processing documents")
 
 
-def load_documents(doc_type: str):
-    if doc_type == "pdf":
-        print("Loading PDF files from ./pdf directory...")
-        document_loader = PyPDFDirectoryLoader("./pdf")
+def load_documents(url: str):
+    print("Loading Repo files from ./repo directory...")
+    # Clone the repository if it doesn't exist
+    repo_path = "./repo"
+    if os.path.exists(repo_path):
+        shutil.rmtree(repo_path)
+    os.system(f"git clone {url} {repo_path}")
+    documents = []
+
+    # Get list of markdown files
+    import glob
+
+    files = glob.glob(os.path.join(repo_path, "**/*.*"), recursive=True)
+    print(f"Found {len(files)} files to process")
+
+    # Process each file with basic markdown loading
+    for file_path in files:
+        print(f"Processing {file_path}...")
         try:
-            documents = document_loader.load()
-            print(f"Successfully loaded {len(documents)} PDF documents")
-            return documents
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
+                documents.append(
+                    Document(page_content=content, metadata={"source": file_path})
+                )
         except Exception as e:
-            print(f"Error loading PDF documents: {str(e)}")
-            return []
-    else:
-        print("Loading Markdown files from ./markdown directory...")
-        # Use a simpler, faster loading approach
-        markdown_path = "./markdown"
-        documents = []
-        
-        # Get list of markdown files
-        import glob
-        md_files = glob.glob(os.path.join(markdown_path, "**/*.md"), recursive=True)
-        print(f"Found {len(md_files)} markdown files to process")
-        
-        # Process each file with basic markdown loading
-        for file_path in md_files:
-            print(f"Processing {file_path}...")
-            try:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                    documents.append(Document(
-                        page_content=content,
-                        metadata={"source": file_path}
-                    ))
-            except Exception as e:
-                print(f"Error processing {file_path}: {str(e)}")
-                
-        print(f"Successfully loaded {len(documents)} documents")
-        return documents
+            print(f"Error processing {file_path}: {str(e)}")
+
+    print(f"Successfully loaded {len(documents)} documents")
+    return documents
 
 
 def split_documents(documents: list[Document]):
@@ -145,7 +141,7 @@ def calculate_chunk_ids(chunks):
 
         # Add it to the page meta-data.
         chunk.metadata["id"] = chunk_id
-        
+
         if (i + 1) % 100 == 0:
             print(f"Processed {i + 1} chunks...")
 
